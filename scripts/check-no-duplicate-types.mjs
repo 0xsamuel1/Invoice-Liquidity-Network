@@ -82,6 +82,14 @@ const AUTO_GENERATED = /AUTO-GENERATED|auto-generated/i;
 // from those schemas. These aliases intentionally parallel shared wire types.
 const SCHEMA_DERIVED_TYPES = /packages\/sdk\/src\/schemas\/events\.ts$/;
 const SHARED_IMPORT = /from\s+["']@iln\/shared["']/;
+const INTENTIONAL_DUPLICATES = new Set([
+  // The event parser's XDR projections intentionally omit fields exposed by
+  // the fuller shared contract-event interfaces.
+  'packages/sdk/src/events.ts:InvoiceDisputedEvent',
+  'packages/sdk/src/events.ts:DisputeEvidenceSubmittedEvent',
+  'packages/sdk/src/events.ts:DisputeResolvedEvent',
+  'packages/sdk/src/events.ts:DisputeAutoResolvedEvent',
+]);
 
 function scanDir(dir, sharedNames) {
   const violations = [];
@@ -123,6 +131,7 @@ function scanDir(dir, sharedNames) {
         const typeDefs = src.matchAll(/^(?:export\s+)?(type|interface|enum)\s+(\w+)/gm);
         for (const m of typeDefs) {
           if (sharedNames.has(m[2])) {
+            if (INTENTIONAL_DUPLICATES.has(`${relPath}:${m[2]}`)) continue;
             // Find the line number
             const idx = m.index;
             const lineNum = src.slice(0, idx).split('\n').length;
