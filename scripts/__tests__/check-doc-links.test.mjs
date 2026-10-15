@@ -19,7 +19,7 @@ test('doc link check ignores links inside fenced Markdown examples', () => {
   writeFileSync(join(root, 'real-target.md'), '# Exists\n');
   writeFileSync(
     join(root, 'guide.md'),
-    '# Guide\n\n```md\n[example](missing-example.md)\n```\n\n[real](real-target.md)\n'
+    '# Guide\n\n```md\n[example](missing-example.md)\n```\n\nInline: `[inline](missing-inline.md)`\n\n[real](real-target.md)\n'
   );
 
   const result = spawnSync(process.execPath, [checkScript, 'guide.md'], {
@@ -29,4 +29,5 @@ test('doc link check ignores links inside fenced Markdown examples', () => {
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.doesNotMatch(result.stdout, /missing-example\.md/);
+  assert.doesNotMatch(result.stdout, /missing-inline\.md/);
 });

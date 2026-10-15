@@ -25,9 +25,11 @@ function resolveSiteRoute(route, contentRoot) {
 
 async function checkFile(filePath, repoRoot) {
   const content = readFileSync(filePath, 'utf8');
-  // Fenced examples show markdown as text and should not be checked as links
-  // from the file containing the example.
-  const markdown = content.replace(/^```[^\n]*\n[\s\S]*?^```[^\n]*(?:\n|$)/gm, '');
+  // Fenced and inline code examples show markdown as text and should not be
+  // checked as links from the file containing the example.
+  const markdown = content
+    .replace(/^```[^\n]*\n[\s\S]*?^```[^\n]*(?:\n|$)/gm, '')
+    .replace(/`[^`\n]*`/g, '');
   const links = extractLinks(markdown);
   const problems = [];
 
