@@ -25,7 +25,10 @@ function resolveSiteRoute(route, contentRoot) {
 
 async function checkFile(filePath, repoRoot) {
   const content = readFileSync(filePath, 'utf8');
-  const links = extractLinks(content);
+  // Fenced examples show markdown as text and should not be checked as links
+  // from the file containing the example.
+  const markdown = content.replace(/^```[^\n]*\n[\s\S]*?^```[^\n]*(?:\n|$)/gm, '');
+  const links = extractLinks(markdown);
   const problems = [];
 
   await Promise.all(
