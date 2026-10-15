@@ -16,18 +16,22 @@
  *   export enum Foo { ... }
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync, readdirSync, lstatSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 // ── 1. Extract exported type names from packages/shared/src ────────────────
 
-const SHARED_DIR = join(import.meta.dirname, '..', 'packages', 'shared', 'src');
+const ROOT_DIR = resolve(process.env.ILN_REPO_ROOT || join(import.meta.dirname, '..'));
+const SHARED_DIR = join(ROOT_DIR, 'packages', 'shared', 'src');
 
 function extractExportedNames(dir) {
   const names = new Set();
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
-    if (statSync(full).isFile() && /\.(ts|mts|cts)$/.test(entry)) {
+    const stat = lstatSync(full);
+    if (stat.isDirectory()) {
+      for (const name of extractExportedNames(full)) names.add(name);
+    } else if (!stat.isSymbolicLink() && /\.(ts|mts|cts)$/.test(entry)) {
       const src = readFileSync(full, 'utf8');
       // Match: export type Foo, export interface Foo, export enum Foo
       // Also matches: export type Foo = (deprecated alias re-exports)
@@ -48,19 +52,35 @@ if (sharedNames.size === 0) {
 
 // ── 2. Scan consuming packages for local definitions with the same names ───
 
+const TOP_LEVEL_CONSUMERS = ['sdk', 'cli', 'indexer', 'notifications'];
+const PACKAGE_DIR = join(ROOT_DIR, 'packages');
+const PACKAGE_CONSUMERS = readdirSync(PACKAGE_DIR, { withFileTypes: true })
+  .filter((entry) => {
+    if (!entry.isDirectory() || entry.name === 'shared') return false;
+    const manifestPath = join(PACKAGE_DIR, entry.name, 'package.json');
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      return ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].some(
+        (group) => Object.hasOwn(manifest[group] ?? {}, '@iln/shared')
+      );
+    } catch {
+      return false;
+    }
+  })
+  .map((entry) => join(PACKAGE_DIR, entry.name, 'src'));
 const CONSUMING_DIRS = [
-  join(import.meta.dirname, '..', 'sdk', 'src'),
-  join(import.meta.dirname, '..', 'cli', 'src'),
-  join(import.meta.dirname, '..', 'indexer', 'src'),
-  join(import.meta.dirname, '..', 'notifications', 'src'),
-  join(import.meta.dirname, '..', 'packages', 'sdk', 'src'),
-  join(import.meta.dirname, '..', 'packages', 'cli', 'src'),
-  join(import.meta.dirname, '..', 'packages', 'indexer', 'src'),
+  ...TOP_LEVEL_CONSUMERS.map((name) => join(ROOT_DIR, name, 'src')),
+  join(PACKAGE_DIR, 'sdk', 'src'),
+  join(PACKAGE_DIR, 'indexer', 'src'),
+  ...PACKAGE_CONSUMERS,
 ];
 
 // Skip patterns: test files, declaration files, auto-generated files, re-exports from @iln/shared
 const SKIP = /\.(test|spec|d)\.(ts|mts|cts|tsx)$/;
 const AUTO_GENERATED = /AUTO-GENERATED|auto-generated/i;
+// This file defines runtime Zod validation schemas and exports inferred types
+// from those schemas. These aliases intentionally parallel shared wire types.
+const SCHEMA_DERIVED_TYPES = /packages\/sdk\/src\/schemas\/events\.ts$/;
 const SHARED_IMPORT = /from\s+["']@iln\/shared["']/;
 
 function scanDir(dir, sharedNames) {
@@ -76,7 +96,7 @@ function scanDir(dir, sharedNames) {
     }
     for (const entry of entries) {
       const full = join(current, entry);
-      const st = statSync(full);
+      const st = lstatSync(full);
       if (st.isDirectory()) {
         walk(full);
       } else if (/\.(ts|mts|cts|tsx)$/.test(entry) && !SKIP.test(entry)) {
@@ -85,7 +105,9 @@ function scanDir(dir, sharedNames) {
 
         // Skip auto-generated files
         if (AUTO_GENERATED.test(src.slice(0, 200))) continue;
-        const relPath = relative(process.cwd(), full);
+        const relPath = relative(ROOT_DIR, full);
+
+        if (SCHEMA_DERIVED_TYPES.test(relPath)) continue;
 
         // Skip files that only re-export from @iln/shared
         if (

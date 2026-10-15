@@ -88,6 +88,7 @@ export interface InvoiceExpiredEvent {
   timestamp: bigint;
 }
 
+/** SDK-specific XDR projection; intentionally omits contract-only fields. */
 export interface InvoiceDisputedEvent {
   type: 'InvoiceDisputed';
   /** Unique invoice identifier. */
@@ -98,6 +99,7 @@ export interface InvoiceDisputedEvent {
   timestamp: bigint;
 }
 
+/** SDK-specific XDR projection with the raw ledger timestamp. */
 export interface DisputeEvidenceSubmittedEvent {
   type: 'DisputeEvidenceSubmitted';
   /** Unique invoice identifier. */
@@ -110,6 +112,7 @@ export interface DisputeEvidenceSubmittedEvent {
   timestamp: bigint;
 }
 
+/** SDK-specific XDR projection with the raw ledger timestamp. */
 export interface DisputeResolvedEvent {
   type: 'DisputeResolved';
   /** Unique invoice identifier. */
@@ -124,6 +127,7 @@ export interface DisputeResolvedEvent {
   timestamp: bigint;
 }
 
+/** SDK-specific XDR projection with the raw ledger timestamp. */
 export interface DisputeAutoResolvedEvent {
   type: 'DisputeAutoResolved';
   /** Unique invoice identifier. */
